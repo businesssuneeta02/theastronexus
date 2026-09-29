@@ -3,10 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'Chatbot is not configured yet.' }, { status: 503 });
-    }
-
     const { messages } = await req.json();
     if (!Array.isArray(messages)) return NextResponse.json({ error: 'Invalid messages.' }, { status: 400 });
 
@@ -26,6 +22,25 @@ export async function POST(req: Request) {
       services: services.data || [],
       courses: courses.data || []
     });
+
+    if (!process.env.OPENAI_API_KEY) {
+      const lastUser = String(messages[messages.length - 1]?.content || '').toLowerCase();
+      const serviceText = (services.data || []).map((s: any) => `${s.name} — ₹${s.price_inr}, ${s.duration || 'duration on request'}`).join('; ');
+      const courseText = (courses.data || []).map((c: any) => `${c.name} — ₹${c.price_inr}, ${c.duration || 'duration on request'}`).join('; ');
+      let reply = 'I can help with TheAstroNexus services, courses, pricing and bookings. ';
+      if (/(price|pricing|cost|fee|charge|how much)/.test(lastUser)) {
+        reply += serviceText ? `Our current services are: ${serviceText}.` : 'Please contact our team for current service pricing.';
+      } else if (/(course|learn|training|class)/.test(lastUser)) {
+        reply += courseText ? `Our current courses are: ${courseText}.` : 'Please contact our team for current course details.';
+      } else if (/(service|consult|booking|book|appointment)/.test(lastUser)) {
+        reply += serviceText ? `Our current services are: ${serviceText}. You can choose a service from the Services section to book and pay.` : 'Please use the Services section or contact our team.';
+      } else if (/(who|about|theastronexus|astrology)/.test(lastUser)) {
+        reply += String(settings.data?.introduction || 'We provide astrology consultations and education.') + ' You can ask me about our services, courses, pricing or booking.';
+      } else {
+        reply += 'Ask me about our services, courses, pricing, bookings, or how to contact the team.';
+      }
+      return NextResponse.json({ reply });
+    }
 
     const system = `You are the friendly website assistant for TheAstroNexus, an astrology consultation and education business in India.
 
