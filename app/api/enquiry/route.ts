@@ -1,0 +1,28 @@
+import {NextResponse} from 'next/server';
+
+const TO_EMAIL=process.env.ENQUIRY_NOTIFICATION_EMAIL||'sushant.bhushan31@gmail.com';
+
+export async function POST(request:Request){
+  try{
+    const {name,email,phone,service,message}=await request.json();
+    if(!name||!message) return NextResponse.json({error:'Name and message are required.'},{status:400});
+    const apiKey=process.env.RESEND_API_KEY;
+    const from=process.env.RESEND_FROM_EMAIL;
+    if(!apiKey||!from) return NextResponse.json({error:'Email notification is not configured yet.'},{status:503});
+
+    const safe=(value:string)=>String(value||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const subject='New TheAstroNexus Website Enquiry';
+    const html=`<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>New website enquiry</h2><p><b>Name:</b> ${safe(name)}</p><p><b>Email:</b> ${safe(email||'Not provided')}</p><p><b>Phone / WhatsApp:</b> ${safe(phone||'Not provided')}</p><p><b>Service / Course:</b> ${safe(service||'Not specified')}</p><p><b>Message:</b><br/>${safe(message).replace(/\n/g,'<br/>')}</p><hr/><p style="color:#666;font-size:12px">Submitted through TheAstroNexus website.</p></div>`;
+
+    const response=await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},
+      body:JSON.stringify({from,to:[TO_EMAIL],reply_to:email||undefined,subject,html})
+    });
+    const result=await response.json();
+    if(!response.ok) return NextResponse.json({error:result?.message||'Unable to send email notification.'},{status:502});
+    return NextResponse.json({ok:true});
+  }catch{
+    return NextResponse.json({error:'Unable to send email notification.'},{status:500});
+  }
+}
