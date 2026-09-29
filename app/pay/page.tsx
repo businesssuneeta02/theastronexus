@@ -1,11 +1,11 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {useSearchParams} from 'next/navigation';
 import {supabase} from '../../lib/supabase';
 declare global {interface Window{Razorpay:any}}
 export default function PayPage(){
- const params=useSearchParams(); const productId=params.get('id'); const productType=params.get('type')==='course'?'course':'service';
+ const [productId,setProductId]=useState<string|null>(null),[productType,setProductType]=useState<'course'|'service'>('service');
  const [item,setItem]=useState<any>(null),[form,setForm]=useState({name:'',email:'',phone:''}),[msg,setMsg]=useState(''),[loading,setLoading]=useState(false);
+ useEffect(()=>{const p=new URLSearchParams(window.location.search);setProductId(p.get('id'));setProductType(p.get('type')==='course'?'course':'service')},[]);
  useEffect(()=>{if(!productId)return;const table=productType==='course'?'courses':'services';supabase.from(table).select('*').eq('id',productId).single().then(({data,error})=>{if(error)setMsg('Unable to load this item.');else setItem(data)})},[productId,productType]);
  useEffect(()=>{const s=document.createElement('script');s.src='https://checkout.razorpay.com/v1/checkout.js';s.async=true;document.body.appendChild(s);return()=>{document.body.removeChild(s)}},[]);
  async function pay(e:any){e.preventDefault();setLoading(true);setMsg('');try{
