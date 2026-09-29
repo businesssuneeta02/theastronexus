@@ -5,7 +5,9 @@ const TO_EMAIL=process.env.ENQUIRY_NOTIFICATION_EMAIL||'sushant.bhushan31@gmail.
 export async function POST(request:Request){
   try{
     const {name,email,phone,service,message}=await request.json();
-    if(!name||!message) return NextResponse.json({error:'Name and message are required.'},{status:400});
+    const emailOk=typeof email==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    const phoneOk=typeof phone==='string' && /^[+0-9][0-9 ()-]{7,18}$/.test(phone.trim());
+    if(!name||!message||!emailOk||!phoneOk) return NextResponse.json({error:'Please provide a valid name, email address, phone number and message.'},{status:400});
     const apiKey=process.env.RESEND_API_KEY;
     const from=process.env.RESEND_FROM_EMAIL;
     if(!apiKey||!from) return NextResponse.json({error:'Email notification is not configured yet.'},{status:503});
