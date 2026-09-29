@@ -1,84 +1,88 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
-    if (!Array.isArray(messages)) return NextResponse.json({ error: 'Invalid messages.' }, { status: 400 });
+    if (!Array.isArray(messages) || !messages.length) return NextResponse.json({ error: 'Invalid messages.' }, { status: 400 });
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
     );
 
-    const [settings, services, courses] = await Promise.all([
+    const [settings, services, courses, faqs] = await Promise.all([
       supabase.from('site_settings').select('*').single(),
-      supabase.from('services').select('name,short_description,detailed_description,duration,price_inr').eq('is_active', true).order('sort_order'),
-      supabase.from('courses').select('name,description,duration,price_inr').eq('is_active', true).order('sort_order')
+      supabase.from('services').select('name,short_description,detailed_description,duration,price_inr,booking_url').eq('is_active', true).order('sort_order'),
+      supabase.from('courses').select('name,description,duration,price_inr,booking_url').eq('is_active', true).order('sort_order'),
+      supabase.from('chatbot_faqs').select('question,answer,keywords').eq('is_active', true).order('sort_order')
     ]);
 
-    const context = JSON.stringify({
-      business: settings.data || {},
-      services: services.data || [],
-      courses: courses.data || []
-    });
+    const lastUser = String(messages[messages.length - 1]?.content || '');
+    const queryTokens = new Set(normalize(lastUser));
+    const business = settings.data || {};
+    const activeServices = services.data || [];
+    const activeCourses = courses.data || [];
+    const activeFaqs = faqs.data || [];
 
-    if (!process.env.OPENAI_API_KEY) {
-      const lastUser = String(messages[messages.length - 1]?.content || '').toLowerCase();
-      const serviceText = (services.data || []).map((s: any) => `${s.name} — ₹${s.price_inr}, ${s.duration || 'duration on request'}`).join('; ');
-      const courseText = (courses.data || []).map((c: any) => `${c.name} — ₹${c.price_inr}, ${c.duration || 'duration on request'}`).join('; ');
-      let reply = 'I can help with TheAstroNexus services, courses, pricing and bookings. ';
-      if (/(price|pricing|cost|fee|charge|how much)/.test(lastUser)) {
-        reply += serviceText ? `Our current services are: ${serviceText}.` : 'Please contact our team for current service pricing.';
-      } else if (/(course|learn|training|class)/.test(lastUser)) {
-        reply += courseText ? `Our current courses are: ${courseText}.` : 'Please contact our team for current course details.';
-      } else if (/(service|consult|booking|book|appointment)/.test(lastUser)) {
-        reply += serviceText ? `Our current services are: ${serviceText}. You can choose a service from the Services section to book and pay.` : 'Please use the Services section or contact our team.';
-      } else if (/(who|about|theastronexus|astrology)/.test(lastUser)) {
-        reply += String(settings.data?.introduction || 'We provide astrology consultations and education.') + ' You can ask me about our services, courses, pricing or booking.';
-      } else {
-        reply += 'Ask me about our services, courses, pricing, bookings, or how to contact the team.';
+    const wa = business.whatsapp_url || '';
+
+    // 1) Exact/keyword matches from Admin-managed FAQ knowledge.
+    let bestFaq: any = null;
+    let bestFaqScore = 0;
+    for (const faq of activeFaqs) {
+      const haystack = normalize([faq.question, faq.keywords || ''].join(' '));
+      const score = haystack.reduce((n: number, token: string) => n + (queryTokens.has(token) && token.length > 2 ? 1 : 0), 0);
+      if (score > bestFaqScore) {
+        bestFaqScore = score;
+        bestFaq = faq;
       }
-      return NextResponse.json({ reply });
+    }
+    if (bestFaq && bestFaqScore >= 1) {
+      return NextResponse.json({ reply: bestFaq.answer, needsWhatsApp: false });
     }
 
-    const system = `You are the friendly website assistant for TheAstroNexus, an astrology consultation and education business in India.
+    const q = lastUser.toLowerCase();
 
-Answer generic visitor questions using the business information below. Be concise, warm and helpful. You may explain what each listed service/course is, prices, durations, how to contact the business, how booking/payment works, and general website questions.
+    // 2) Deterministic answers from current Admin-managed services/courses/settings.
+    if (/(price|pricing|cost|fee|charge|how much)/.test(q)) {
+      const serviceText = activeServices.map((s: any) => `${s.name} — ₹${s.price_inr ?? 'on request'}${s.duration ? `, ${s.duration}` : ''}`).join('; ');
+      const courseText = activeCourses.map((c: any) => `${c.name} — ₹${c.price_inr ?? 'on request'}${c.duration ? `, ${c.duration}` : ''}`).join('; ');
+      return NextResponse.json({ reply: [serviceText && `Services: ${serviceText}.`, courseText && `Courses: ${courseText}.`].filter(Boolean).join(' ') || 'Current pricing is available from our team on WhatsApp.', needsWhatsApp: !serviceText && !courseText });
+    }
 
-Do not invent prices, services, guarantees, qualifications, appointment availability, personal predictions, medical advice, legal advice, financial guarantees, or facts that are not in the supplied business information. For personalised astrology readings, explain that the visitor should book a consultation rather than pretending to perform a complete professional reading in chat.
+    if (/(course|learn|training|class|workshop)/.test(q) && activeCourses.length) {
+      return NextResponse.json({
+        reply: `Our current courses are: ${activeCourses.map((c: any) => `${c.name}${c.description ? ` — ${c.description}` : ''}${c.price_inr != null ? ` (₹${c.price_inr})` : ''}`).join('; ')}.`,
+        needsWhatsApp: false
+      });
+    }
 
-If the visitor asks to speak to a person, asks for WhatsApp, wants to book through WhatsApp, has a complaint, needs a custom request, or the question cannot be answered confidently from the supplied information, say that you can hand them over to the TheAstroNexus team on WhatsApp.
+    if (/(service|consult|appointment|book|booking)/.test(q) && activeServices.length) {
+      return NextResponse.json({
+        reply: `Our current services are: ${activeServices.map((s: any) => `${s.name}${s.price_inr != null ? ` — ₹${s.price_inr}` : ''}`).join('; ')}. Select a service on the website to see its details and booking option.`,
+        needsWhatsApp: false
+      });
+    }
 
-Business information:
-${context}`;
+    if (/(who|about|business|theastronexus|astrology)/.test(q) && business.introduction) {
+      return NextResponse.json({ reply: business.introduction, needsWhatsApp: false });
+    }
 
-    const input = messages.slice(-12).map((m: any) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: String(m.content || '')
-    }));
+    if (/(contact|phone|email|reach|whatsapp)/.test(q)) {
+      const contact = [business.contact_phone && `Phone: ${business.contact_phone}`, business.contact_email && `Email: ${business.contact_email}`].filter(Boolean).join(' · ');
+      return NextResponse.json({ reply: contact || 'Please contact our team directly on WhatsApp.', needsWhatsApp: !contact });
+    }
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna',
-        instructions: system,
-        input,
-        max_output_tokens: 500
-      })
+    // 3) No approved website answer: route to WhatsApp instead of guessing.
+    return NextResponse.json({
+      reply: 'I couldn’t find that information in the website knowledge provided by the admin. Please contact the TheAstroNexus team directly on WhatsApp.',
+      needsWhatsApp: true,
+      whatsappUrl: wa
     });
-
-    const data = await response.json();
-    if (!response.ok) {
-      return NextResponse.json({ error: data?.error?.message || 'Unable to get a chatbot response.' }, { status: 500 });
-    }
-
-    return NextResponse.json({ reply: data.output_text || 'I can help with services, courses and bookings. Would you like to continue on WhatsApp?' });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Chatbot error.' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Chatbot error.', needsWhatsApp: true }, { status: 500 });
   }
 }
