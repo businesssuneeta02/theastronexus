@@ -1,10 +1,10 @@
 import {NextResponse} from 'next/server';
 import Razorpay from 'razorpay';
 import {createClient} from '@supabase/supabase-js';
-const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!);
 export async function POST(req:Request){
  try{
-  if(!process.env.RAZORPAY_KEY_ID||!process.env.RAZORPAY_KEY_SECRET||!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({error:'Payment gateway is not configured yet.'},{status:503});
+  if(!process.env.NEXT_PUBLIC_SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.RAZORPAY_KEY_ID||!process.env.RAZORPAY_KEY_SECRET) return NextResponse.json({error:'Payment gateway is not configured yet.'},{status:503});
+  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
   const {productType='service',productId,name,email,phone}=await req.json();
   if(!productId||!name) return NextResponse.json({error:'Product and customer name are required.'},{status:400});
   const table=productType==='course'?'courses':'services';
