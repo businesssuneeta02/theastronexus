@@ -36,7 +36,7 @@ export async function POST(request:Request){
     const users=await sb.auth.admin.listUsers({page:1,perPage:1000});if(users.error)throw users.error;
     let target=users.data.users.find(u=>u.email?.toLowerCase()===email);
     let invited=false;
-    if(!target){const invitedResult=await sb.auth.admin.inviteUserByEmail(email);if(invitedResult.error)throw invitedResult.error;target=invitedResult.data.user;invited=true;}
+    if(!target){const redirectTo=`${new URL(request.url).origin}/admin8000`;const invitedResult=await sb.auth.admin.inviteUserByEmail(email,{redirectTo});if(invitedResult.error)throw invitedResult.error;target=invitedResult.data.user;invited=true;}
     const {error}=await sb.from('admin_users').upsert({user_id:target.id},{onConflict:'user_id'});if(error)throw error;
     return NextResponse.json({ok:true,message:invited?'Invitation sent and admin access added.':'Admin access added.'});
   }catch(e:any){return NextResponse.json({error:e?.message||'Unable to add admin.'},{status:500})}
