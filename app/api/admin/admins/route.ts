@@ -48,7 +48,7 @@ export async function POST(request:Request){
     let target=users.data.users.find(u=>u.email?.toLowerCase()===email);
     let invited=false;
     const redirectTo=`${new URL(request.url).origin}/admin8000`;
-    if(!target){const invitedResult=await sb.auth.admin.inviteUserByEmail(email,{redirectTo});if(invitedResult.error)throw invitedResult.error;target=invitedResult.data.user;invited=true;}
+    if(!target){const created=await sb.auth.admin.createUser({email});if(created.error)throw created.error;target=created.data.user;invited=true;}
     const {error}=await sb.from('admin_users').upsert({user_id:target.id},{onConflict:'user_id'});if(error)throw error;
     if(target?.email)await sendAuthEmail(sb,target.email,redirectTo,"You're invited to TheAstroNexus Admin",'You have been invited as an administrator','Use the button below to activate your administrator account.');
     return NextResponse.json({ok:true,message:invited?'Invitation sent and admin access added.':'Admin access added.'});
