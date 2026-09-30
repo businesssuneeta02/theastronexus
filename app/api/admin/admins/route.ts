@@ -6,6 +6,17 @@ function adminClient(){
   if(!key) throw new Error('Server admin key is not configured.');
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{autoRefreshToken:false,persistSession:false}});
 }
+async function sendAuthEmail(sb:any,email:string,redirectTo:string,subject:string,headline:string,description:string){
+  const key=process.env.RESEND_API_KEY;
+  const from=process.env.RESEND_FROM_EMAIL;
+  if(!key||!from) throw new Error('Resend is not configured on the server. Set RESEND_API_KEY and RESEND_FROM_EMAIL.');
+  const generated=await sb.auth.admin.generateLink({type:'invite',email,options:{redirectTo}});
+  if(generated.error) throw generated.error;
+  const link=generated.data?.properties?.action_link;
+  if(!link) throw new Error('Supabase did not return an invitation link.');
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({from,to:[email],subject,html:'<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto"><h2>'+headline+'</h2><p>'+description+'</p><p><a href="'+link+'" style="display:inline-block;padding:12px 20px;background:#111;color:#fff;text-decoration:none;border-radius:6px">Accept invitation</a></p><p>If the button does not work, use this link:</p><p>'+link+'</p></div>'})});
+  if(!response.ok){const detail=await response.text();throw new Error('Resend rejected the email: '+detail);}
+}
 async function authorize(request:Request){
   const auth=request.headers.get('authorization');
   if(!auth?.startsWith('Bearer ')) return null;
@@ -54,8 +65,7 @@ export async function PATCH(request:Request){
     if(targetError)throw targetError;
     if(!target.user?.email)return NextResponse.json({error:'Unable to find the admin email address.'},{status:404});
     const redirectTo=`${new URL(request.url).origin}/admin8000`;
-    const {error}=await sb.auth.admin.inviteUserByEmail(target.user.email,{redirectTo});
-    if(error)throw error;
+    await sendAuthEmail(sb,target.user.email,redirectTo,'TheAstroNexus administrator invitation','You have been invited as an administrator','Use the button below to accept your TheAstroNexus administrator invitation.');
     return NextResponse.json({ok:true,message:`Invitation resent to ${target.user.email}.`});
   }catch(e:any){return NextResponse.json({error:e?.message||'Unable to resend invitation.'},{status:500})}
 }
