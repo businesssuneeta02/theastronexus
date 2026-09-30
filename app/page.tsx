@@ -5,7 +5,7 @@ import Chatbot from '../components/Chatbot';
 
 export default function Home(){
  const [data,setData]=useState<any>({settings:{},services:[],owners:[],testimonials:[],courses:[],horoscopes:[],gallery:[]}),[sent,setSent]=useState(false),[submitError,setSubmitError]=useState(''),[submitting,setSubmitting]=useState(false);
- useEffect(()=>{(async()=>{const [st,s,o,t,c,h]=await Promise.all([supabase.from('site_settings').select('*').single(),
+ useEffect(()=>{(async()=>{const [st,s,o,t,c,h,g]=await Promise.all([supabase.from('site_settings').select('*').single(),
   supabase.from('services').select('*').eq('is_active',true).order('sort_order'),
   supabase.from('co_owners').select('*').order('sort_order'),
   supabase.from('testimonials').select('*').eq('is_published',true),
