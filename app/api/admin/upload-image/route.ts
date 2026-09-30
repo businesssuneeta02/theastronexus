@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server';
 import {createClient} from '@supabase/supabase-js';
 
 const repo=process.env.GITHUB_UPLOAD_REPO||'businesssuneeta02/theastronexus';
-const branch=process.env.GITHUB_UPLOAD_BRANCH||'development';
+const branch=process.env.GITHUB_UPLOAD_BRANCH||(process.env.VERCEL_ENV==='production'?'main':'development');
 
 function adminClient(){
   const key=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
