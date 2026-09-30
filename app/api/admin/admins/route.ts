@@ -41,6 +41,24 @@ export async function POST(request:Request){
     return NextResponse.json({ok:true,message:invited?'Invitation sent and admin access added.':'Admin access added.'});
   }catch(e:any){return NextResponse.json({error:e?.message||'Unable to add admin.'},{status:500})}
 }
+export async function PATCH(request:Request){
+  try{
+    const user=await authorize(request);if(!user)return NextResponse.json({error:'Admin access required.'},{status:403});
+    const body=await request.json();const user_id=String(body.user_id||'').trim();
+    if(!user_id)return NextResponse.json({error:'Missing admin user.'},{status:400});
+    const sb=adminClient();
+    const {data:admin,error:adminError}=await sb.from('admin_users').select('user_id').eq('user_id',user_id).maybeSingle();
+    if(adminError)throw adminError;
+    if(!admin)return NextResponse.json({error:'This user does not have admin access.'},{status:404});
+    const {data:target,error:targetError}=await sb.auth.admin.getUserById(user_id);
+    if(targetError)throw targetError;
+    if(!target.user?.email)return NextResponse.json({error:'Unable to find the admin email address.'},{status:404});
+    const redirectTo=`${new URL(request.url).origin}/admin8000`;
+    const {error}=await sb.auth.admin.inviteUserByEmail(target.user.email,{redirectTo});
+    if(error)throw error;
+    return NextResponse.json({ok:true,message:`Invitation resent to ${target.user.email}.`});
+  }catch(e:any){return NextResponse.json({error:e?.message||'Unable to resend invitation.'},{status:500})}
+}
 export async function DELETE(request:Request){
   try{
     const user=await authorize(request);if(!user)return NextResponse.json({error:'Admin access required.'},{status:403});
