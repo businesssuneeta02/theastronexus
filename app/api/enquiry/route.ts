@@ -1,6 +1,9 @@
 import {NextResponse} from 'next/server';
+import {createClient} from '@supabase/supabase-js';
 
 const TO_EMAIL=process.env.ENQUIRY_NOTIFICATION_EMAIL||'sushant.bhushan31@gmail.com';
+
+function adminClient(){const key=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;if(!key)throw new Error('Server admin key is not configured.');return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{autoRefreshToken:false,persistSession:false}})}
 
 export async function POST(request:Request){
   try{
@@ -8,6 +11,10 @@ export async function POST(request:Request){
     const emailOk=typeof email==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
     const phoneOk=typeof phone==='string' && /^[+0-9][0-9 ()-]{7,18}$/.test(phone.trim());
     if(!name||!message||!emailOk||!phoneOk) return NextResponse.json({error:'Please provide a valid name, email address, phone number and message.'},{status:400});
+    const sb=adminClient();
+    const {error:dbError}=await sb.from('enquiries').insert({name:String(name).trim(),email:String(email).trim(),phone:String(phone).trim(),service:String(service||'').trim(),message:String(message).trim()});
+    if(dbError) return NextResponse.json({error:'Unable to save your enquiry. Please try again.'},{status:500});
+
     const apiKey=process.env.RESEND_API_KEY;
     const from=process.env.RESEND_FROM_EMAIL;
     if(!apiKey||!from) return NextResponse.json({error:'Email notification is not configured yet.'},{status:503});
