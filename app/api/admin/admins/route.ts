@@ -14,7 +14,7 @@ async function sendAuthEmail(sb:any,email:string,redirectTo:string,subject:strin
   if(generated.error) throw generated.error;
   const link=generated.data?.properties?.action_link;
   if(!link) throw new Error('Supabase did not return an invitation link.');
-  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({from,to:[email],subject,html:'<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto"><h2>'+headline+'</h2><p>'+description+'</p><p><a href="'+link+'" style="display:inline-block;padding:12px 20px;background:#111;color:#fff;text-decoration:none;border-radius:6px">Accept invitation</a></p><p>If the button does not work, use this link:</p><p>'+link+'</p></div>'})});
+  const text=description+'\n\nAccept your invitation: '+link+'\n\nIf you did not expect this invitation, you can ignore this email.'; const html='<!doctype html><html><body style="margin:0;background:#f6f3ed;padding:32px 16px;font-family:Arial,sans-serif;color:#171717"><div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e8e2d8;border-radius:14px;padding:32px"><div style="font-size:12px;letter-spacing:2px;font-weight:700">THEASTRONEXUS</div><h2 style="margin:18px 0 10px;font-size:24px">'+headline+'</h2><p style="font-size:16px;line-height:1.6">'+description+'</p><p><a href="'+link+'" style="display:inline-block;padding:13px 22px;background:#171717;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Accept invitation</a></p><p style="font-size:13px;line-height:1.6;color:#666">If the button does not work, copy and paste this link into your browser:</p><p style="font-size:12px;line-height:1.5;word-break:break-all"><a href="'+link+'">'+link+'</a></p><p style="font-size:12px;color:#888">If you did not expect this invitation, you can ignore this email.</p></div></body></html>'; const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({from,to:[email],reply_to:from,subject,html,text})});
   if(!response.ok){const detail=await response.text();throw new Error('Resend rejected the email: '+detail);}
 }
 async function authorize(request:Request){
@@ -50,7 +50,7 @@ export async function POST(request:Request){
     const redirectTo=`${new URL(request.url).origin}/admin8000`;
     if(!target){const invitedResult=await sb.auth.admin.inviteUserByEmail(email,{redirectTo});if(invitedResult.error)throw invitedResult.error;target=invitedResult.data.user;invited=true;}
     const {error}=await sb.from('admin_users').upsert({user_id:target.id},{onConflict:'user_id'});if(error)throw error;
-    if(target?.email)await sendAuthEmail(sb,target.email,redirectTo,'TheAstroNexus administrator invitation','You have been invited as an administrator','Use the button below to accept your TheAstroNexus administrator invitation.');
+    if(target?.email)await sendAuthEmail(sb,target.email,redirectTo,"You're invited to TheAstroNexus Admin",'You have been invited as an administrator','Use the button below to activate your administrator account.');
     return NextResponse.json({ok:true,message:invited?'Invitation sent and admin access added.':'Admin access added.'});
   }catch(e:any){return NextResponse.json({error:e?.message||'Unable to add admin.'},{status:500})}
 }
