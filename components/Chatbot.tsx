@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 
-type Message = { role: 'user' | 'assistant'; content: string };
+type Message = { role: 'user' | 'assistant'; content: string; whatsapp?: boolean };
 
 export default function Chatbot({ whatsappUrl }: { whatsappUrl?: string }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hi! I’m the TheAstroNexus assistant. Ask me about our services, courses, pricing, bookings or anything about the website.' }
+    { role: 'assistant', content: 'Hi! I’m the TheAstroNexus assistant. Ask me about our services, courses, pricing, bookings or anything covered by the website.' }
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,9 +26,13 @@ export default function Chatbot({ whatsappUrl }: { whatsappUrl?: string }) {
         body: JSON.stringify({ messages: next })
       });
       const data = await res.json();
-      setMessages([...next, { role: 'assistant', content: data.reply || data.error || 'Sorry, I could not respond right now.' }]);
+      setMessages([...next, {
+        role: 'assistant',
+        content: data.reply || 'Please continue with our team on WhatsApp.',
+        whatsapp: !!data.needsWhatsApp
+      }]);
     } catch {
-      setMessages([...next, { role: 'assistant', content: 'I’m having trouble connecting right now. You can continue with our team on WhatsApp.' }]);
+      setMessages([...next, { role: 'assistant', content: 'I’m having trouble connecting right now. Please continue with our team on WhatsApp.', whatsapp: true }]);
     } finally {
       setBusy(false);
     }
@@ -39,12 +43,19 @@ export default function Chatbot({ whatsappUrl }: { whatsappUrl?: string }) {
       {open && (
         <div className="chatWindow">
           <div className="chatHeader">
-            <div><b>TheAstroNexus</b><small>Online assistant</small></div>
+            <div><b>TheAstroNexus</b><small>Website assistant</small></div>
             <button onClick={() => setOpen(false)} aria-label="Close chat">×</button>
           </div>
           <div className="chatMessages">
-            {messages.map((m, i) => <div key={i} className={m.role === 'user' ? 'chatBubble user' : 'chatBubble'}>{m.content}</div>)}
-            {busy && <div className="chatBubble">Thinking…</div>}
+            {messages.map((m, i) => (
+              <div key={i} className={m.role === 'user' ? 'chatBubble user' : 'chatBubble'}>
+                {m.content}
+                {m.role === 'assistant' && m.whatsapp && whatsappUrl && (
+                  <a className="whatsappChat" href={whatsappUrl} target="_blank" rel="noreferrer">Chat directly on WhatsApp</a>
+                )}
+              </div>
+            ))}
+            {busy && <div className="chatBubble">Checking the website information…</div>}
           </div>
           <div className="chatActions">
             {whatsappUrl && <a className="whatsappChat" href={whatsappUrl} target="_blank" rel="noreferrer">Continue on WhatsApp</a>}
