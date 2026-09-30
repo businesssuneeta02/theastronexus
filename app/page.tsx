@@ -1,30 +1,25 @@
-export default function Home() {
-  return (
-    <main style={{
-      minHeight: '100vh',
-      display: 'grid',
-      placeItems: 'center',
-      padding: '32px',
-      background: 'linear-gradient(135deg, #faf7ff 0%, #f1e8ff 100%)',
-      color: '#2b2038',
-      fontFamily: 'Arial, sans-serif',
-      textAlign: 'center'
-    }}>
-      <section style={{maxWidth: 680}}>
-        <div style={{fontSize: 14, letterSpacing: 4, fontWeight: 700, color: '#76539f'}}>
-          THEASTRONEXUS
-        </div>
-        <h1 style={{
-          fontFamily: 'Georgia, serif',
-          fontSize: 'clamp(48px, 8vw, 82px)',
-          margin: '18px 0 12px'
-        }}>
-          Website Under Construction
-        </h1>
-        <p style={{fontSize: 18, lineHeight: 1.7, color: '#665b70', margin: 0}}>
-          We are currently building something special. Please check back soon.
-        </p>
-      </section>
-    </main>
-  );
-}
+'use client';
+import {useEffect,useState} from 'react';
+import {supabase} from '../lib/supabase';
+import Chatbot from '../components/Chatbot';
+
+export default function Home(){
+ const [data,setData]=useState<any>({settings:{},services:[],owners:[],testimonials:[],courses:[],horoscopes:[],gallery:[]}),[sent,setSent]=useState(false),[submitError,setSubmitError]=useState(''),[submitting,setSubmitting]=useState(false);
+ useEffect(()=>{(async()=>{const [st,s,o,t,c,h,g]=await Promise.all([supabase.from('site_settings').select('*').single(),
+  supabase.from('services').select('*').eq('is_active',true).order('sort_order'),
+  supabase.from('co_owners').select('*').order('sort_order'),
+  supabase.from('testimonials').select('*').eq('is_published',true),
+  supabase.from('courses').select('*').eq('is_active',true).order('sort_order'),
+  supabase.from('daily_horoscopes').select('*').eq('horoscope_date',new Date().toISOString().slice(0,10)),
+  supabase.from('gallery').select('*').eq('is_published',true).order('sort_order')
+ ]);setData({settings:st.data||{},services:s.data||[],owners:o.data||[],testimonials:t.data||[],courses:c.data||[],horoscopes:h.data||[],gallery:g.data||[]})})()},[]);
+ async function submit(e:any){e.preventDefault();setSent(false);setSubmitError('');const form=e.currentTarget;const f=new FormData(form);const enquiry={name:String(f.get('name')||'').trim(),email:String(f.get('email')||'').trim(),phone:String(f.get('phone')||'').trim(),service:String(f.get('service')||'').trim(),message:String(f.get('message')||'').trim()};const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(enquiry.email);const phoneOk=/^[+0-9][0-9 ()-]{7,18}$/.test(enquiry.phone);if(!enquiry.name){setSubmitError('Please enter your name.');return}if(!emailOk){setSubmitError('Please enter a valid email address, for example name@example.com.');return}if(!phoneOk){setSubmitError('Please enter a valid phone / WhatsApp number.');return}if(!enquiry.message){setSubmitError('Please enter your message.');return}setSubmitting(true);try{const {error}=await supabase.from('enquiries').insert(enquiry);if(error)throw new Error(error?.message||error?.details||error?.hint||'Unable to save your enquiry. Please try again.');const notify=await fetch('/api/enquiry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(enquiry)});const result=await notify.json().catch(()=>({}));if(!notify.ok)throw new Error(result?.error||'Your enquiry was saved, but the email notification could not be sent. Please try again later.');setSent(true);form.reset()}catch(err:any){setSubmitError(err?.message||'Unable to send your enquiry. Please try again.')}finally{setSubmitting(false)}}
+ return <><header><div className="wrap nav"><a className="brand" href="#home">✦ TheAstroNexus</a><nav><a href="#about">About</a><a href="#services">Services</a><a href="#courses">Courses</a><a href="#gallery">Gallery</a><a href="#horoscope">Horoscope</a><a href="#contact">Contact</a></nav><a className="button" href="#enquiry">Book / Enquire</a></div></header>
+ <main id="home"><section className="hero wrap"><div><div className="eyebrow">ASTROLOGY • GUIDANCE • LEARNING</div><h1>Decode the stars.<br/><em>Understand yourself.</em></h1><p>{data.settings.introduction||'TheAstroNexus is a modern space for personalised astrology consultations, practical guidance and structured astrology education.'}</p><div className="actions"><a className="button" href="#services">Explore Services</a><a className="button ghost" href="#horoscope">Daily Horoscope</a></div></div><div className="cosmos"><div className="moon">☾</div><span>✦</span><span>✧</span><span>✦</span></div></section>
+ <section id="about"><div className="wrap"><div className="heading"><div className="eyebrow">OUR STORY</div><h2>{data.settings.tagline||'Ancient wisdom, thoughtfully presented'}</h2><p>Personalised attention, clear explanations and a respectful approach to astrology.</p></div><div className="cards">{data.owners.map((o:any)=><article className="card owner" key={o.id}><div className="avatar">{o.name?.[0]}</div><div><h3>{o.name}</h3><label>{o.role}</label><p>{o.bio}</p></div></article>)}</div></div></section>
+ <section id="services"><div className="wrap"><div className="heading"><div className="eyebrow">WHAT WE OFFER</div><h2>Astrology Services</h2><p>Choose a consultation based on the area you want to explore.</p></div><div className="cards">{data.services.map((s:any)=><article className="card" key={s.id}><h3>{s.name}</h3><p><b>{s.short_description}</b></p><p>{s.detailed_description}</p><div className="meta"><span>{s.duration}</span><strong>₹{Number(s.price_inr).toLocaleString('en-IN')}</strong></div><a className="button wide" href={"/pay?type=service&id="+s.id}>Book & Pay</a></article>)}</div></div></section>
+ <section id="courses"><div className="wrap"><div className="heading"><div className="eyebrow">LEARN ASTROLOGY</div><h2>Courses & Workshops</h2></div><div className="cards">{data.courses.map((c:any)=><article className="card" key={c.id}><label>COURSE</label><h3>{c.name}</h3><p>{c.description}</p><div className="meta"><span>{c.duration}</span><strong>₹{Number(c.price_inr).toLocaleString('en-IN')}</strong></div><a className="button wide" href={"/pay?type=course&id="+c.id}>Enrol & Pay</a></article>)}</div></div></section>
+ <section id="horoscope"><div className="wrap"><div className="heading"><div className="eyebrow">TODAY</div><h2>Daily Horoscope</h2><p>General guidance for reflection and entertainment.</p></div><div className="zodiac">{data.horoscopes.map((h:any)=><article key={h.zodiac_sign}><h3>{h.zodiac_sign}</h3><p>{h.prediction}</p><small>Lucky {h.lucky_number} · {h.lucky_color}</small></article>)}</div></div></section>
+ <section id="testimonials"><div className="wrap"><div className="heading"><div className="eyebrow">CLIENT EXPERIENCES</div><h2>Testimonials</h2></div><div className="cards">{data.testimonials.map((t:any)=><article className="card" key={t.id}><div className="stars">★★★★★</div><p>“{t.quote}”</p><b>{t.name}</b><small>{t.location}</small></article>)}</div></div></section>
+ <section id="gallery"><div className="wrap"><div className="heading"><div className="eyebrow">GALLERY</div><h2>From TheAstroNexus</h2><p>A visual glimpse into our astrology space.</p></div><div className="cards">{data.gallery.map((g:any)=><article className="card" key={g.id}><img src={g.image_url} alt={g.alt_text||g.title||'TheAstroNexus gallery'} style={{display:'block',width:'100%',height:'240px',objectFit:'cover',borderRadius:'12px'}}/><h3>{g.title}</h3></article>)}</div></div></section><section id="enquiry"><div className="wrap split"><div><div className="eyebrow">START YOUR CONVERSATION</div><h2>Enquiry & Booking</h2><p>Tell us what you would like guidance on. We will follow up with availability and next steps.</p></div><form className="card form" onSubmit={submit} noValidate><input name="name" required placeholder="Your name"/><input name="phone" type="tel" required inputMode="tel" placeholder="Phone / WhatsApp"/><input name="email" type="email" required placeholder="Email"/><input name="service" placeholder="Service / Course"/><textarea name="message" required placeholder="How can we help?"/>{submitError&&<p role="alert" style={{color:"#b42318",margin:"0"}}>{submitError}</p>}<button className="button wide" disabled={submitting}>{submitting?"Sending…":sent?"Enquiry Sent ✓":"Send Enquiry"}</button></form></div></section>
+ <section id="contact"><div className="wrap"><div className="heading"><div className="eyebrow">STAY CONNECTED</div><h2>Contact, Payment & Social</h2></div><div className="cards"><article className="card"><h3>Payment</h3><p>Complete your consultation payment securely.</p><a className="button" href="#services">Choose a Service & Pay</a></article><article className="card"><h3>Social Updates</h3><p>{data.settings.contact_email||''}<br/>{data.settings.contact_phone||''}</p><a className="button ghost" href={data.settings.instagram_url||'#contact'}>Follow Us</a></article><article className="card"><h3>Connect</h3><p>Stay connected with TheAstroNexus.</p><a className="button ghost" href={data.settings.whatsapp_url||'#enquiry'}>WhatsApp</a></article></div></div></section></main><Chatbot whatsappUrl={data.settings.whatsapp_url}/><footer>© {new Date().getFullYear()} TheAstroNexus.in · Astrology consultations & education</footer></>}
