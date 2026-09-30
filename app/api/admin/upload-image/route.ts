@@ -4,18 +4,31 @@ import {createClient} from '@supabase/supabase-js';
 const repo=process.env.GITHUB_UPLOAD_REPO||'businesssuneeta02/theastronexus';
 const branch=process.env.GITHUB_UPLOAD_BRANCH||'development';
 
+function adminClient(){
+  const key=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!key) throw new Error('Server admin key is not configured.');
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{autoRefreshToken:false,persistSession:false}});
+}
+
+async function authorize(request:Request){
+  const auth=request.headers.get('authorization');
+  if(!auth?.startsWith('Bearer ')) return null;
+  const sb=adminClient();
+  const {data:{user},error}=await sb.auth.getUser(auth.slice(7));
+  if(error||!user)return null;
+  const {data:row,error:adminError}=await sb.from('admin_users').select('user_id').eq('user_id',user.id).maybeSingle();
+  if(adminError||!row)return null;
+  return user;
+}
+
 export async function POST(request:Request){
   try{
-    const auth=request.headers.get('authorization');
-    if(!auth?.startsWith('Bearer ')) return NextResponse.json({error:'Not authenticated.'},{status:401});
-    const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
-    const {data:{user},error:userError}=await supabase.auth.getUser(auth.slice(7));
-    if(userError||!user) return NextResponse.json({error:'Not authenticated.'},{status:401});
-    const {data:admin}=await supabase.from('admin_users').select('user_id').eq('user_id',user.id).maybeSingle();
-    if(!admin) return NextResponse.json({error:'Admin access required.'},{status:403});
+    const user=await authorize(request);
+    if(!user) return NextResponse.json({error:'Admin access required.'},{status:403});
 
     const token=process.env.GITHUB_UPLOAD_TOKEN;
     if(!token) return NextResponse.json({error:'Image upload is not configured yet.'},{status:503});
+
     const form=await request.formData();
     const file=form.get('file');
     if(!(file instanceof File)) return NextResponse.json({error:'Please select an image.'},{status:400});
@@ -34,6 +47,7 @@ export async function POST(request:Request){
     });
     const result=await response.json();
     if(!response.ok) return NextResponse.json({error:result?.message||'GitHub image upload failed.'},{status:502});
+
     const [owner,name]=repo.split('/');
     const url='https://raw.githubusercontent.com/'+owner+'/'+name+'/'+branch+'/'+path;
     return NextResponse.json({ok:true,url,path});
