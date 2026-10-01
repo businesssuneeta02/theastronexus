@@ -1,7 +1,8 @@
 import {NextResponse} from 'next/server';
 import {supabase} from '../../../lib/supabase';
 
-export const revalidate=60;
+export const dynamic='force-dynamic';
+export const revalidate=0;
 
 export async function GET(){
   const [st,s,o,t,c,h,g]=await Promise.all([
@@ -16,5 +17,5 @@ export async function GET(){
   return NextResponse.json({
     settings:st.data||{},services:s.data||[],owners:o.data||[],testimonials:t.data||[],
     courses:c.data||[],horoscopes:h.data||[],gallery:g.data||[]
-  },{headers:{'Cache-Control':'public, s-maxage=60, stale-while-revalidate=300'}});
+  },{headers:{'Cache-Control':'no-store, max-age=0, must-revalidate'}});
 }
