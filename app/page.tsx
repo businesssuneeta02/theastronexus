@@ -5,8 +5,8 @@ export default function Home(){
     <div style={{maxWidth:'680px'}}>
       <div style={{fontSize:'42px',marginBottom:'18px'}}>✦</div>
       <div style={{letterSpacing:'3px',fontSize:'13px',opacity:.75}}>THEASTRONEXUS</div>
-      <h1 style={{fontSize:'clamp(34px,6vw,58px)',margin:'18px 0 12px'}}>We’ll be back shortly.</h1>
-      <p style={{fontSize:'18px',lineHeight:1.7,opacity:.82,margin:0}}>TheAstroNexus is currently undergoing scheduled maintenance while we complete some improvements. Please check back soon.</p>
+      <h1 style={{fontSize:'clamp(34px,6vw,58px)',margin:'18px 0 12px'}}>Website temporarily unavailable</h1>
+      <p style={{fontSize:'18px',lineHeight:1.7,opacity:.82,margin:0}}>TheAstroNexus website is temporarily unavailable. Please check back shortly.</p>
     </div>
   </main>;
 }
